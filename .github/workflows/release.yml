@@ -1,0 +1,99 @@
+```yaml
+name: Build and Release Worker
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ==============================
+      # Checkout
+      # ==============================
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ==============================
+      # Setup Node.js
+      # ==============================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # ==============================
+      # Install Terser
+      # ==============================
+      - name: Install Terser
+        run: npm install --no-save terser@latest
+
+      # ==============================
+      # Create output directory
+      # ==============================
+      - name: Prepare output
+        run: mkdir -p dist
+
+      # ==============================
+      # Minify worker.js
+      # ==============================
+      - name: Minify worker.js
+        run: |
+          npx terser worker.js \
+            --compress \
+            --mangle \
+            --output dist/worker.min.js
+
+      # ==============================
+      # Generate release version
+      #
+      # Example:
+      # 26.4.12
+      #
+      # Uses Asia/Shanghai instead of UTC.
+      # ==============================
+      - name: Generate version
+        id: version
+        run: |
+          VERSION=$(TZ=Asia/Shanghai date +'%y.%-m.%-d')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Release version: $VERSION"
+
+      # ==============================
+      # Show generated file
+      # ==============================
+      - name: Show build result
+        run: |
+          ls -lh worker.js
+          ls -lh dist/worker.min.js
+
+      # ==============================
+      # Create or update GitHub Release
+      # ==============================
+      - name: Create or update Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists."
+
+            gh release upload \
+              "$VERSION" \
+              dist/worker.min.js \
+              --clobber
+
+          else
+            echo "Creating Release $VERSION."
+
+            gh release create \
+              "$VERSION" \
+              dist/worker.min.js \
+              --title "$VERSION" \
+              --notes "Minified Cloudflare Worker build for $VERSION."
+          fi
+```
