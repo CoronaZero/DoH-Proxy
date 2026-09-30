@@ -388,9 +388,7 @@ Web Interface
 
 ## License
 
-Choose and add a license that matches your intended use of the project.
-
-If no license is provided, all rights remain with the copyright holder.
+MIT License
 
 ## Disclaimer
 
@@ -399,8 +397,3 @@ This project is provided as-is.
 The availability, filtering behavior, privacy characteristics, and operational policies of third-party DNS providers are outside the control of this project.
 
 Always check the documentation and policies of the upstream DNS provider you choose.
-
-```
-
-这版可以直接作为仓库首页的 `README.md`。整体定位我写成了 **lightweight DoH proxy**，而不是把它描述成 DNS resolver，这和你现在 Worker 的实际架构更准确。
-```
