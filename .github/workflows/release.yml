@@ -16,6 +16,8 @@ jobs:
       # ==============================
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # ==============================
       # Setup Node.js
@@ -48,19 +50,30 @@ jobs:
             --output dist/worker.min.js
 
       # ==============================
-      # Generate release version
-      #
-      # Example:
-      # 26.4.12
-      #
-      # Uses Asia/Shanghai instead of UTC.
+      # Generate release information
       # ==============================
-      - name: Generate version
-        id: version
+      - name: Generate release information
+        id: release_info
         run: |
           VERSION=$(TZ=Asia/Shanghai date +'%y.%-m.%-d')
+
+          COMMIT_SHA=$(git rev-parse HEAD)
+          SHORT_SHA=$(git rev-parse --short=7 HEAD)
+          COMMIT_MESSAGE=$(git log -1 --pretty=%s)
+
+          COMMIT_TIME=$(TZ=Asia/Shanghai git log -1 --date=format:'%Y-%m-%d %H:%M:%S %Z' --format='%ad')
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "commit_message=$COMMIT_MESSAGE" >> "$GITHUB_OUTPUT"
+          echo "commit_time=$COMMIT_TIME" >> "$GITHUB_OUTPUT"
+
           echo "Release version: $VERSION"
+          echo "Commit: $COMMIT_SHA"
+          echo "Short commit: $SHORT_SHA"
+          echo "Commit message: $COMMIT_MESSAGE"
+          echo "Commit time: $COMMIT_TIME"
 
       # ==============================
       # Show generated file
@@ -71,12 +84,45 @@ jobs:
           ls -lh dist/worker.min.js
 
       # ==============================
+      # Generate Release notes
+      # ==============================
+      - name: Generate Release notes
+        id: notes
+        env:
+          VERSION: ${{ steps.release_info.outputs.version }}
+          COMMIT_SHA: ${{ steps.release_info.outputs.commit_sha }}
+          SHORT_SHA: ${{ steps.release_info.outputs.short_sha }}
+          COMMIT_MESSAGE: ${{ steps.release_info.outputs.commit_message }}
+          COMMIT_TIME: ${{ steps.release_info.outputs.commit_time }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          cat > release_notes.md <<EOF
+          ## Build Information
+
+          | Item | Value |
+          | --- | --- |
+          | Version | \`$VERSION\` |
+          | Commit | [\`$SHORT_SHA\`](https://github.com/$REPOSITORY/commit/$COMMIT_SHA) |
+          | Commit SHA | \`$COMMIT_SHA\` |
+          | Commit time | $COMMIT_TIME |
+          | Commit message | $COMMIT_MESSAGE |
+
+          ## Artifact
+
+          - \`worker.min.js\` — Minified Cloudflare Worker
+
+          This release was built automatically from commit [$SHORT_SHA](https://github.com/$REPOSITORY/commit/$COMMIT_SHA).
+          EOF
+
+          cat release_notes.md
+
+      # ==============================
       # Create or update GitHub Release
       # ==============================
       - name: Create or update Release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ steps.release_info.outputs.version }}
         run: |
           if gh release view "$VERSION" >/dev/null 2>&1; then
             echo "Release $VERSION already exists."
@@ -86,6 +132,11 @@ jobs:
               dist/worker.min.js \
               --clobber
 
+            gh release edit \
+              "$VERSION" \
+              --title "$VERSION" \
+              --notes-file release_notes.md
+
           else
             echo "Creating Release $VERSION."
 
@@ -93,6 +144,5 @@ jobs:
               "$VERSION" \
               dist/worker.min.js \
               --title "$VERSION" \
-              --notes "Minified Cloudflare Worker build for $VERSION."
+              --notes-file release_notes.md
           fi
-
