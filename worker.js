@@ -3,7 +3,7 @@
 // ==============================
 
 // Secret Path，可自由修改
-const SECRET_PATH_NAME = "kawaii";
+const SECRET_PATH_NAME = "WARNING";
 
 // DoH 上游
 const routes = {
